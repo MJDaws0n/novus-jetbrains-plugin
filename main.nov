@@ -1,0 +1,9 @@
+module my_project;
+
+import lib/std std;
+
+fn main() -> i32 {
+    std.print("Hello, world!");
+    std.exit(0);
+    return 0;
+}

@@ -1,0 +1,9 @@
+module plugin_smoke;
+
+fn main() -> i32 {
+    let n: i32 = 2;
+    for (let i: i32 = 0; i < 3; i++) {
+        n += i;
+    }
+    return n - 5;
+}

@@ -1,0 +1,52 @@
+<idea-plugin>
+    <id>dev.mjdawson.novus</id>
+    <name>Novus Language Support</name>
+    <vendor url="https://github.com/MJDaws0n/Novus">Novus Community</vendor>
+    <description><![CDATA[
+      First-class Novus language support with syntax highlighting, parsing, completion,
+      navigation, refactoring, structure and folding, plus Novus build/run configurations
+      and Nox package-manager integration.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <fileType name="Novus" language="Novus" implementationClass="dev.novus.lang.NovusFileType" fieldName="INSTANCE" extensions="nov"/>
+        <lang.parserDefinition language="Novus" implementationClass="dev.novus.lang.parser.NovusParserDefinition"/>
+        <lang.syntaxHighlighterFactory language="Novus" implementationClass="dev.novus.lang.editor.NovusSyntaxHighlighterFactory"/>
+        <colorSettingsPage implementation="dev.novus.lang.editor.NovusColorSettingsPage"/>
+        <lang.commenter language="Novus" implementationClass="dev.novus.lang.editor.NovusCommenter"/>
+        <lang.braceMatcher language="Novus" implementationClass="dev.novus.lang.editor.NovusBraceMatcher"/>
+        <lang.quoteHandler language="Novus" implementationClass="dev.novus.lang.editor.NovusQuoteHandler"/>
+        <lang.foldingBuilder language="Novus" implementationClass="dev.novus.lang.editor.NovusFoldingBuilder"/>
+        <lang.formatter language="Novus" implementationClass="dev.novus.lang.editor.NovusFormattingModelBuilder"/>
+        <langCodeStyleSettingsProvider implementation="dev.novus.lang.editor.NovusLanguageCodeStyleSettingsProvider"/>
+        <completion.contributor language="Novus" implementationClass="dev.novus.lang.editor.NovusCompletionContributor"/>
+        <annotator language="Novus" implementationClass="dev.novus.lang.editor.NovusAnnotator"/>
+        <lang.documentationProvider language="Novus" implementationClass="dev.novus.lang.editor.NovusDocumentationProvider"/>
+        <lang.refContributor language="Novus" implementation="dev.novus.lang.psi.NovusReferenceContributor"/>
+        <lang.psiStructureViewFactory language="Novus" implementationClass="dev.novus.lang.editor.NovusStructureViewFactory"/>
+        <lang.findUsagesProvider language="Novus" implementationClass="dev.novus.lang.psi.NovusFindUsagesProvider"/>
+        <gotoSymbolContributor implementation="dev.novus.lang.psi.NovusGotoSymbolContributor"/>
+        <runConfigurationProducer implementation="dev.novus.run.NovusRunConfigurationProducer"/>
+        <runLineMarkerContributor language="Novus" implementationClass="dev.novus.run.NovusRunLineMarkerContributor"/>
+        <configurationType implementation="dev.novus.run.NovusRunConfigurationType"/>
+        <projectConfigurable parentId="tools" instance="dev.novus.toolchain.NovusSettingsConfigurable" displayName="Novus" id="dev.novus.settings"/>
+        <notificationGroup id="Novus" displayType="BALLOON"/>
+        <consoleFilterProvider implementation="dev.novus.run.NovusConsoleFilterProvider"/>
+        <internalFileTemplate name="Novus File"/>
+    </extensions>
+
+    <actions>
+        <group id="Novus.Tools" text="Novus / Nox" description="Novus compiler and Nox package manager" popup="true">
+            <add-to-group group-id="ToolsMenu" anchor="last"/>
+            <action id="Novus.BuildCurrent" class="dev.novus.actions.NovusBuildAction" text="Build Current Novus File" description="Compile the current .nov file"/>
+            <separator/>
+            <action id="Nox.Init" class="dev.novus.actions.NoxAction$Init" text="Nox: Initialise Project"/>
+            <action id="Nox.Pull" class="dev.novus.actions.NoxAction$Pull" text="Nox: Pull Package…"/>
+            <action id="Nox.Update" class="dev.novus.actions.NoxAction$Update" text="Nox: Update Packages"/>
+            <action id="Nox.Check" class="dev.novus.actions.NoxAction$Check" text="Nox: Check for Updates"/>
+            <action id="Nox.List" class="dev.novus.actions.NoxAction$ListPackages" text="Nox: List Packages"/>
+        </group>
+    </actions>
+</idea-plugin>
