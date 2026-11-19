@@ -21,13 +21,29 @@ public final class NovusAnnotator implements Annotator {
         if(type!=NovusTypes.IDENTIFIER) return;
         PsiElement parent=element.getParent();
         if(parent instanceof NovusNamedElement named && named.getNameIdentifier()==element) {
-            var key=named.getDeclarationType()==NovusTypes.FUNCTION_DECL?NovusSyntaxHighlighter.FUNCTION:
+            var key=named.getDeclarationType()==NovusTypes.CLASS_DECL?NovusSyntaxHighlighter.CLASS:
+                named.getDeclarationType()==NovusTypes.FIELD_DECL?NovusSyntaxHighlighter.FIELD:
+                named.getDeclarationType()==NovusTypes.METHOD_DECL || named.getDeclarationType()==NovusTypes.CONSTRUCTOR_DECL?NovusSyntaxHighlighter.METHOD:
+                named.getDeclarationType()==NovusTypes.FUNCTION_DECL?NovusSyntaxHighlighter.FUNCTION:
                 named.getDeclarationType()==NovusTypes.PARAMETER_DECL?NovusSyntaxHighlighter.PARAMETER:
                 named.getDeclarationType()==NovusTypes.MODULE_DECL?NovusSyntaxHighlighter.MODULE:NovusSyntaxHighlighter.VARIABLE;
             holder.newSilentAnnotation(HighlightSeverity.INFORMATION).textAttributes(key).create(); return;
         }
         if(parent!=null && parent.getNode().getElementType()==NovusTypes.IMPORT_DECL) {
             holder.newSilentAnnotation(HighlightSeverity.INFORMATION).textAttributes(NovusSyntaxHighlighter.MODULE).create(); return;
+        }
+        if("self".equals(element.getText()) && NovusSymbolResolver.containingClass(element)!=null) {
+            holder.newSilentAnnotation(HighlightSeverity.INFORMATION).textAttributes(NovusSyntaxHighlighter.KEYWORD).create(); return;
+        }
+        if(parent!=null && parent.getNode().getElementType()==NovusTypes.TYPE_REF) {
+            holder.newSilentAnnotation(HighlightSeverity.INFORMATION).textAttributes(NovusSyntaxHighlighter.CLASS).create(); return;
+        }
+        PsiElement resolved=NovusSymbolResolver.resolve(element);
+        if(resolved instanceof NovusNamedElement named && named.getDeclarationType()==NovusTypes.CLASS_DECL) {
+            holder.newSilentAnnotation(HighlightSeverity.INFORMATION).textAttributes(NovusSyntaxHighlighter.CLASS).create(); return;
+        }
+        if(resolved instanceof NovusNamedElement named && named.getDeclarationType()==NovusTypes.FIELD_DECL) {
+            holder.newSilentAnnotation(HighlightSeverity.INFORMATION).textAttributes(NovusSyntaxHighlighter.FIELD).create(); return;
         }
         PsiElement next=significant(element,true);
         if(next!=null && next.getNode().getElementType()==NovusTypes.LPAREN) {

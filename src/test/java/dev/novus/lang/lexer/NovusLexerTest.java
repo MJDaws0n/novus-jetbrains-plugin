@@ -9,6 +9,18 @@ import java.util.ArrayList;
 import static org.junit.Assert.*;
 
 public final class NovusLexerTest {
+    @Test public void lexesClassSyntax(){
+        var lexer=new NovusLexer();
+        lexer.start("class new pub priv static null init self");
+        var expected=java.util.List.of(NovusTypes.CLASS,NovusTypes.NEW,NovusTypes.PUB,NovusTypes.PRIV,
+            NovusTypes.STATIC,NovusTypes.NULL,NovusTypes.IDENTIFIER,NovusTypes.IDENTIFIER);
+        var actual=new java.util.ArrayList<IElementType>();
+        while(lexer.getTokenType()!=null){
+            if(lexer.getTokenType()!=com.intellij.psi.TokenType.WHITE_SPACE) actual.add(lexer.getTokenType());
+            lexer.advance();
+        }
+        assertEquals(expected,actual);
+    }
     @Test public void lexesCompleteCompilerSurface(){
         String code="module app; #if(os == \"linux\") { import lib/my-lib[print] std; } fn main(x: []u64 = [0xFF, 0b10]) -> i32 { for (let i: i32 = 0; i < 3; i++) { x[0] <<= 1; } return 0; }";
         var lexer=new NovusLexer();lexer.start(code);var types=new ArrayList<IElementType>();while(lexer.getTokenType()!=null){types.add(lexer.getTokenType());lexer.advance();}

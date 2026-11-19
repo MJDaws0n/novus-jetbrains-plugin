@@ -29,12 +29,26 @@ public final class NovusNamedElement extends ASTWrapperPsiElement implements Psi
         return this;
     }
     public IElementType getDeclarationType() { return getNode().getElementType(); }
+    public boolean isCallable() {
+        var t=getDeclarationType();
+        return t==NovusTypes.FUNCTION_DECL || t==NovusTypes.METHOD_DECL || t==NovusTypes.CONSTRUCTOR_DECL;
+    }
+    public boolean isStatic() { return getNode().findChildByType(NovusTypes.STATIC)!=null; }
+    public boolean isPublic() { return getNode().findChildByType(NovusTypes.PUB)!=null; }
+    public @Nullable String getTypeName() {
+        ASTNode type=getNode().findChildByType(NovusTypes.TYPE_REF);
+        return type==null?null:type.getText().replaceAll("\\s+","");
+    }
     public String getKindName() {
         var t=getDeclarationType();
         if(t==NovusTypes.FUNCTION_DECL) return "function";
         if(t==NovusTypes.PARAMETER_DECL) return "parameter";
         if(t==NovusTypes.VARIABLE_DECL) return "variable";
         if(t==NovusTypes.MODULE_DECL) return "module";
+        if(t==NovusTypes.CLASS_DECL) return "class";
+        if(t==NovusTypes.FIELD_DECL) return "field";
+        if(t==NovusTypes.METHOD_DECL) return "method";
+        if(t==NovusTypes.CONSTRUCTOR_DECL) return "constructor";
         return "symbol";
     }
     @Override public ItemPresentation getPresentation() {

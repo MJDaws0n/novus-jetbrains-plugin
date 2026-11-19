@@ -28,7 +28,7 @@ public final class NovusStructureViewFactory implements PsiStructureViewFactory 
         Model(PsiFile file,Editor editor){super(file,editor,new Element(file));withSuitableClasses(NovusNamedElement.class);}
         @Override public Sorter @NotNull [] getSorters(){return new Sorter[]{Sorter.ALPHA_SORTER};}
         @Override public boolean isAlwaysShowsPlus(StructureViewTreeElement element){return false;}
-        @Override public boolean isAlwaysLeaf(StructureViewTreeElement element){return element.getValue() instanceof NovusNamedElement;}
+        @Override public boolean isAlwaysLeaf(StructureViewTreeElement element){return element.getValue() instanceof NovusNamedElement n && n.getDeclarationType()!=NovusTypes.CLASS_DECL;}
     }
     private static final class Element implements StructureViewTreeElement {
         private final com.intellij.psi.PsiElement value;
@@ -36,7 +36,8 @@ public final class NovusStructureViewFactory implements PsiStructureViewFactory 
         @Override public Object getValue(){return value;}
         @Override public TreeElement @NotNull [] getChildren(){
             return PsiTreeUtil.findChildrenOfType(value,NovusNamedElement.class).stream()
-                .filter(n->n.getDeclarationType()==NovusTypes.FUNCTION_DECL || (n.getDeclarationType()==NovusTypes.VARIABLE_DECL && PsiTreeUtil.getParentOfType(n,NovusNamedElement.class,true)==null))
+                .filter(n->PsiTreeUtil.getParentOfType(n,NovusNamedElement.class,true)==(value instanceof NovusNamedElement?value:null))
+                .filter(n->n.getDeclarationType()!=NovusTypes.MODULE_DECL && n.getDeclarationType()!=NovusTypes.PARAMETER_DECL)
                 .map(Element::new).toArray(TreeElement[]::new);
         }
         @Override public @NotNull ItemPresentation getPresentation(){if(value instanceof NovusNamedElement n)return n.getPresentation();return new ItemPresentation(){@Override public String getPresentableText(){return value instanceof PsiFile f?f.getName():"Novus";}@Override public javax.swing.Icon getIcon(boolean unused){return dev.novus.lang.psi.NovusIcons.FILE;}};}

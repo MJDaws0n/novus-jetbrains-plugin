@@ -33,6 +33,9 @@ public final class NovusSyntaxHighlighter extends SyntaxHighlighterBase {
     public static final TextAttributesKey PARAMETER=key("NOVUS_PARAMETER",DefaultLanguageHighlighterColors.PARAMETER);
     public static final TextAttributesKey MODULE=key("NOVUS_MODULE",DefaultLanguageHighlighterColors.CLASS_NAME);
     public static final TextAttributesKey BUILTIN=key("NOVUS_BUILTIN",DefaultLanguageHighlighterColors.PREDEFINED_SYMBOL);
+    public static final TextAttributesKey CLASS=key("NOVUS_CLASS",DefaultLanguageHighlighterColors.CLASS_NAME);
+    public static final TextAttributesKey FIELD=key("NOVUS_FIELD",DefaultLanguageHighlighterColors.INSTANCE_FIELD);
+    public static final TextAttributesKey METHOD=key("NOVUS_METHOD",DefaultLanguageHighlighterColors.INSTANCE_METHOD);
     private static final TextAttributesKey[] EMPTY=new TextAttributesKey[0];
     private static final Map<IElementType,TextAttributesKey> MAP=new HashMap<>();
     static {

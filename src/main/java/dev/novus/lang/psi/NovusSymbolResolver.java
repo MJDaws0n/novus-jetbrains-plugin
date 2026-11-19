@@ -28,51 +28,135 @@ public final class NovusSymbolResolver {
     private static final Pattern IMPORT=Pattern.compile("\\bimport\\s+([^;\\s\\[]+)(?:\\s*\\[([^]]*)])?(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?\\s*;");
 
     public static @Nullable PsiElement resolve(PsiElement identifier) {
+        return resolve(identifier,0);
+    }
+    private static @Nullable PsiElement resolve(PsiElement identifier,int depth) {
+        if(depth>20) return null;
         String name=identifier.getText(); PsiFile file=identifier.getContainingFile(); if(file==null)return null;
         PsiElement prev=significant(identifier,false);
         if(prev!=null && prev.getNode().getElementType()==NovusTypes.DOT) {
             PsiElement qualifier=significant(prev,false);
             if(qualifier!=null) {
-                PsiFile imported=resolveAlias(file,qualifier.getText());
-                NovusNamedElement found=findDeclaration(imported,name,true); if(found!=null)return found;
+                for(var d:aliasDeclarations(file,qualifier.getText())) if(name.equals(d.getName())) return d;
+                ValueType owner=typeOf(qualifier,depth+1);
+                if(owner!=null && owner.arrayDepth()==0)
+                    for(var d:members(owner,identifier)) if(name.equals(d.getName())) return d;
             }
+            return null;
         }
-        NovusNamedElement scope=containingFunction(identifier);
-        if(scope!=null) {
-            for(var d:PsiTreeUtil.findChildrenOfType(scope,NovusNamedElement.class))
-                if(name.equals(d.getName()) && d.getTextOffset()<=identifier.getTextOffset()) return d;
-        }
-        for(var d:PsiTreeUtil.findChildrenOfType(file,NovusNamedElement.class))
-            if(name.equals(d.getName()) && (d.getDeclarationType()==NovusTypes.FUNCTION_DECL || isGlobal(d)))return d;
+        if("self".equals(name)) return containingClass(identifier);
+        for(var d:locals(identifier)) if(name.equals(d.getName())) return d;
+        for(var d:exports(file)) if(name.equals(d.getName())) return d;
         for(ImportInfo info:imports(file)) if(info.alias()==null || info.alias().isBlank()) {
             if(!info.selectors().isEmpty()&&!info.selectors().contains(name))continue;
-            NovusNamedElement found=findDeclaration(resolveImport(file,info.path()),name,true); if(found!=null)return found;
+            for(var d:exports(resolveImport(file,info.path()))) if(name.equals(d.getName())) return d;
         }
-        return null;
+        return resolveAlias(file,name);
     }
 
     public static List<NovusNamedElement> visibleDeclarations(PsiElement place) {
         LinkedHashMap<String,NovusNamedElement> out=new LinkedHashMap<>(); PsiFile file=place.getContainingFile(); if(file==null)return List.of();
-        NovusNamedElement fn=containingFunction(place);
-        if(fn!=null)
-            for(var d:PsiTreeUtil.findChildrenOfType(fn,NovusNamedElement.class)) if(d.getName()!=null && d.getTextOffset()<=place.getTextOffset())out.put(d.getName(),d);
-        for(var d:PsiTreeUtil.findChildrenOfType(file,NovusNamedElement.class)) if(d.getName()!=null && (d.getDeclarationType()==NovusTypes.FUNCTION_DECL || isGlobal(d)))out.putIfAbsent(d.getName(),d);
+        for(var d:locals(place)) if(d.getName()!=null) out.putIfAbsent(d.getName(),d);
+        for(var d:exports(file)) if(d.getName()!=null) out.putIfAbsent(d.getName(),d);
         for(ImportInfo info:imports(file)) if(info.alias()==null || info.alias().isBlank()) {
-            PsiFile imported=resolveImport(file,info.path()); if(imported!=null) for(var d:PsiTreeUtil.findChildrenOfType(imported,NovusNamedElement.class))
-                if(d.getDeclarationType()==NovusTypes.FUNCTION_DECL && d.getName()!=null && (info.selectors().isEmpty()||info.selectors().contains(d.getName())))out.putIfAbsent(d.getName(),d);
+            for(var d:exports(resolveImport(file,info.path())))
+                if(d.getName()!=null && (info.selectors().isEmpty()||info.selectors().contains(d.getName())))out.putIfAbsent(d.getName(),d);
         }
         return new ArrayList<>(out.values());
     }
     public static List<NovusNamedElement> aliasDeclarations(PsiFile file,String alias) {
-        PsiFile target=resolveAlias(file,alias); if(target==null)return List.of();
-        return PsiTreeUtil.findChildrenOfType(target,NovusNamedElement.class).stream().filter(d->d.getDeclarationType()==NovusTypes.FUNCTION_DECL).toList();
+        for(ImportInfo info:imports(file)) if(alias.equals(info.alias()))
+            return exports(resolveImport(file,info.path())).stream()
+                .filter(d->info.selectors().isEmpty() || info.selectors().contains(d.getName())).toList();
+        return List.of();
     }
-    private static boolean isGlobal(NovusNamedElement d) {
-        return d.getDeclarationType()==NovusTypes.VARIABLE_DECL && PsiTreeUtil.getParentOfType(d,NovusNamedElement.class,true)==null;
+    private static List<NovusNamedElement> exports(@Nullable PsiFile file) {
+        if(file==null) return List.of();
+        return PsiTreeUtil.findChildrenOfType(file,NovusNamedElement.class).stream()
+            .filter(d->PsiTreeUtil.getParentOfType(d,NovusNamedElement.class,true)==null)
+            .filter(d->d.getDeclarationType()==NovusTypes.FUNCTION_DECL || d.getDeclarationType()==NovusTypes.CLASS_DECL || d.getDeclarationType()==NovusTypes.VARIABLE_DECL).toList();
     }
-    private static NovusNamedElement findDeclaration(PsiFile file,String name,boolean callable) {
-        if(file==null)return null;
-        for(var d:PsiTreeUtil.findChildrenOfType(file,NovusNamedElement.class)) if(name.equals(d.getName()) && (!callable || d.getDeclarationType()!=NovusTypes.MODULE_DECL))return d;
+    private static List<NovusNamedElement> locals(PsiElement place) {
+        var fn=containingFunction(place); if(fn==null) return List.of();
+        return PsiTreeUtil.findChildrenOfType(fn,NovusNamedElement.class).stream()
+            .filter(d->(d.getDeclarationType()==NovusTypes.PARAMETER_DECL || d.getDeclarationType()==NovusTypes.VARIABLE_DECL)
+                && containingFunction(d)==fn && d.getTextOffset()<=place.getTextOffset())
+            .filter(d->{
+                if(d.getDeclarationType()==NovusTypes.PARAMETER_DECL) return true;
+                PsiElement scope=d.getParent();
+                while(scope!=null && scope!=fn && scope.getNode().getElementType()!=NovusTypes.BLOCK) scope=scope.getParent();
+                return scope!=null && PsiTreeUtil.isAncestor(scope,place,false);
+            }).sorted(Comparator.comparingInt(NovusNamedElement::getTextOffset).reversed()).toList();
+    }
+    public static boolean isMemberReference(PsiElement place) {
+        PsiElement prev=significant(place,false);
+        return prev!=null && prev.getNode().getElementType()==NovusTypes.DOT;
+    }
+    public static List<NovusNamedElement> memberDeclarations(PsiElement place) {
+        if(!isMemberReference(place)) return List.of();
+        PsiElement qualifier=significant(significant(place,false),false); if(qualifier==null) return List.of();
+        var aliases=aliasDeclarations(place.getContainingFile(),qualifier.getText());
+        if(resolveAlias(place.getContainingFile(),qualifier.getText())!=null) return aliases;
+        ValueType owner=typeOf(qualifier,0);
+        return owner==null || owner.arrayDepth()!=0?List.of():members(owner,place);
+    }
+    private static List<NovusNamedElement> members(ValueType owner,PsiElement place) {
+        boolean internal=containingClass(place)==owner.declaration();
+        return PsiTreeUtil.findChildrenOfType(owner.declaration(),NovusNamedElement.class).stream()
+            .filter(d->d.getDeclarationType()==NovusTypes.FIELD_DECL || d.getDeclarationType()==NovusTypes.METHOD_DECL)
+            .filter(d->d.isStatic()==owner.staticAccess() && (internal || d.isPublic())).toList();
+    }
+    private static @Nullable ValueType typeOf(PsiElement expression,int depth) {
+        if(depth>20) return null;
+        var token=expression.getNode().getElementType();
+        if(token==NovusTypes.IDENTIFIER) {
+            if("self".equals(expression.getText())) {
+                var owner=containingClass(expression);
+                return owner==null?null:new ValueType(owner,0,false);
+            }
+            PsiElement resolved=resolve(expression,depth+1);
+            if(resolved instanceof NovusNamedElement d) {
+                if(d.getDeclarationType()==NovusTypes.CLASS_DECL) return new ValueType(d,0,true);
+                return declaredType(d);
+            }
+        } else if(token==NovusTypes.RPAREN || token==NovusTypes.RBRACKET) {
+            var open=token==NovusTypes.RPAREN?NovusTypes.LPAREN:NovusTypes.LBRACKET;
+            int balance=1; PsiElement start=significant(expression,false);
+            while(start!=null) {
+                var t=start.getNode().getElementType();
+                if(t==token) balance++; else if(t==open && --balance==0) break;
+                start=significant(start,false);
+            }
+            PsiElement base=start==null?null:significant(start,false); if(base==null) return null;
+            if(token==NovusTypes.RBRACKET) {
+                ValueType array=typeOf(base,depth+1);
+                return array==null || array.arrayDepth()==0?null:new ValueType(array.declaration(),array.arrayDepth()-1,false);
+            }
+            PsiElement resolved=resolve(base,depth+1);
+            if(resolved instanceof NovusNamedElement d) {
+                if(d.getDeclarationType()==NovusTypes.CLASS_DECL) return new ValueType(d,0,false);
+                if(d.isCallable()) return declaredType(d);
+            }
+        }
+        return null;
+    }
+    private static @Nullable ValueType declaredType(NovusNamedElement d) {
+        String name=d.getTypeName(); if(name==null) return null;
+        int dimensions=0;
+        while(name.startsWith("[]")) { dimensions++; name=name.substring(2); }
+        PsiFile source=d.getContainingFile();
+        int dot=name.indexOf('.');
+        List<NovusNamedElement> candidates;
+        if(dot>=0) {
+            candidates=aliasDeclarations(source,name.substring(0,dot)); name=name.substring(dot+1);
+        } else {
+            candidates=new ArrayList<>(exports(source));
+            for(ImportInfo info:imports(source)) if(info.alias()==null || info.alias().isBlank())
+                for(var imported:exports(resolveImport(source,info.path())))
+                    if(info.selectors().isEmpty() || info.selectors().contains(imported.getName())) candidates.add(imported);
+        }
+        for(var candidate:candidates) if(candidate.getDeclarationType()==NovusTypes.CLASS_DECL && name.equals(candidate.getName()))
+            return new ValueType(candidate,dimensions,false);
         return null;
     }
     public static @Nullable PsiFile resolveAlias(PsiFile file,String alias) {
@@ -96,6 +180,8 @@ public final class NovusSymbolResolver {
         while(n!=null && (n.getText().isBlank() || NovusTypes.COMMENTS.contains(n.getNode().getElementType())))n=forward?PsiTreeUtil.nextLeaf(n):PsiTreeUtil.prevLeaf(n);
         return n;
     }
-    private static NovusNamedElement containingFunction(PsiElement place){PsiElement p=place.getParent();while(p!=null){if(p instanceof NovusNamedElement n&&n.getDeclarationType()==NovusTypes.FUNCTION_DECL)return n;p=p.getParent();}return null;}
+    private static NovusNamedElement containingFunction(PsiElement place){PsiElement p=place.getParent();while(p!=null){if(p instanceof NovusNamedElement n&&n.isCallable())return n;p=p.getParent();}return null;}
+    public static @Nullable NovusNamedElement containingClass(PsiElement place){PsiElement p=place.getParent();while(p!=null){if(p instanceof NovusNamedElement n&&n.getDeclarationType()==NovusTypes.CLASS_DECL)return n;p=p.getParent();}return null;}
+    private record ValueType(NovusNamedElement declaration,int arrayDepth,boolean staticAccess) {}
     public record ImportInfo(String path,String alias,Set<String> selectors) {}
 }

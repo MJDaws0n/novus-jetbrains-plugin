@@ -4,7 +4,7 @@ plugins {
 }
 
 group = "dev.mjdawson.novus"
-version = "0.1.2"
+version = "0.2.0"
 
 val localIdePath = providers.gradleProperty("localIdePath").orNull
 
@@ -42,7 +42,7 @@ intellijPlatform {
         ideaVersion {
             sinceBuild = "262"
         }
-        changeNotes = "Fixes invisible typed input in interactive Novus run configurations while retaining terminal emulation."
+        changeNotes = "Adds Novus classes, fields, constructors, methods, access modifiers, static members, new expressions, class types and null; includes class/member highlighting, navigation, completion and Structure view."
     }
     buildSearchableOptions = false
 }

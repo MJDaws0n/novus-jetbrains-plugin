@@ -19,10 +19,11 @@ public final class NovusParser implements PsiParser {
         while(!b.eof()) {
             skipComments(); if(b.eof()) break;
             if(at(IMPORT)) parseImport();
+            else if(at(CLASS)) parseClass();
             else if(at(FN)) parseFunction();
             else if(at(LET)) parseVariable(true);
             else if(at(HASH)) parseComptimeIf();
-            else { b.error("Expected module, import, function, global variable, or #if declaration"); recoverTopLevel(); }
+            else { b.error("Expected module, import, class, function, global variable, or #if declaration"); recoverTopLevel(); }
         }
         file.done(root); return builder.getTreeBuilt();
     }
@@ -32,22 +33,48 @@ public final class NovusParser implements PsiParser {
     }
     private void parseImport() {
         var m=b.mark(); advance();
-        while(!b.eof() && !at(SEMICOLON) && !at(FN) && !at(LET) && !at(IMPORT) && !at(HASH)) advance();
+        while(!b.eof() && !at(SEMICOLON) && !at(FN) && !at(LET) && !at(IMPORT) && !at(CLASS) && !at(HASH)) advance();
         expect(SEMICOLON,"Expected ';' after import declaration"); m.done(IMPORT_DECL);
     }
     private void parseFunction() {
-        var m=b.mark(); advance(); expect(IDENTIFIER,"Expected function name");
+        parseFunction(b.mark(),FUNCTION_DECL,false);
+    }
+    private void parseFunction(PsiBuilder.Marker m,IElementType kind,boolean constructor) {
+        if(!constructor) advance();
+        expect(IDENTIFIER,constructor?"Expected init":"Expected function name");
         if(expect(LPAREN,"Expected '(' after function name")) {
-            while(!b.eof() && !at(RPAREN)) {
+            while(!b.eof() && !at(RPAREN) && !at(LBRACE) && !at(RBRACE)) {
                 skipComments(); if(at(RPAREN)) break;
                 parseParameter();
                 if(at(COMMA)) advance(); else if(!at(RPAREN)) { b.error("Expected ',' or ')' after parameter"); advance(); }
             }
             expect(RPAREN,"Expected ')' after parameters");
         }
-        expect(ARROW,"Expected '->' before return type"); parseType();
+        if(!constructor) { expect(ARROW,"Expected '->' before return type"); parseType(); }
         if(at(LBRACE)) parseBlock(); else b.error("Expected function body");
-        m.done(FUNCTION_DECL);
+        m.done(kind);
+    }
+    private void parseClass() {
+        var m=b.mark(); advance(); expect(IDENTIFIER,"Expected class name");
+        if(!at(LBRACE)) { b.error("Expected '{' after class name"); m.done(CLASS_DECL); return; }
+        var body=b.mark(); advance();
+        while(!b.eof() && !at(RBRACE)) {
+            skipComments(); if(at(RBRACE) || b.eof()) break;
+            var member=b.mark();
+            if(at(PUB)||at(PRIV)) advance();
+            boolean isStatic=at(STATIC); if(isStatic) advance();
+            if(at(LET)) parseVariable(member,FIELD_DECL,false);
+            else if(at(FN)) parseFunction(member,METHOD_DECL,false);
+            else if(at(IDENTIFIER) && "init".equals(b.getTokenText())) {
+                if(isStatic) b.error("A constructor cannot be static");
+                parseFunction(member,CONSTRUCTOR_DECL,true);
+            } else {
+                b.error("Expected a field, method, or init constructor");
+                if(!at(RBRACE) && !b.eof()) advance();
+                member.drop();
+            }
+        }
+        expect(RBRACE,"Expected '}' after class body"); body.done(BLOCK); m.done(CLASS_DECL);
     }
     private void parseParameter() {
         var m=b.mark(); expect(IDENTIFIER,"Expected parameter name"); expect(COLON,"Expected ':' after parameter name"); parseType();
@@ -60,13 +87,21 @@ public final class NovusParser implements PsiParser {
             advance();
             expect(RBRACKET,"Expected ']' in array type");
         }
-        if(NovusTypes.TYPES.contains(token()) || at(IDENTIFIER)) advance(); else b.error("Expected type name");
+        if(NovusTypes.TYPES.contains(token())) advance();
+        else if(at(IDENTIFIER)) {
+            advance();
+            while(at(DOT)) { advance(); if(!expect(IDENTIFIER,"Expected class name after '.'")) break; }
+        } else b.error("Expected type name");
         m.done(TYPE_REF);
     }
     private void parseVariable(boolean global) {
-        var m=b.mark(); advance(); expect(IDENTIFIER,"Expected variable name"); expect(COLON,"Expected ':' after variable name"); parseType();
-        expect(ASSIGN,"Expected '=' in variable declaration"); parseExpressionUntil(SEMICOLON); expect(SEMICOLON,"Expected ';' after variable declaration");
-        m.done(VARIABLE_DECL);
+        parseVariable(b.mark(),VARIABLE_DECL,true);
+    }
+    private void parseVariable(PsiBuilder.Marker m,IElementType kind,boolean requireInitializer) {
+        advance(); expect(IDENTIFIER,"Expected variable name"); expect(COLON,"Expected ':' after variable name"); parseType();
+        if(at(ASSIGN)) { advance(); parseExpressionUntil(SEMICOLON,RBRACE); }
+        else if(requireInitializer) b.error("Expected '=' in variable declaration");
+        expect(SEMICOLON,"Expected ';' after variable declaration"); m.done(kind);
     }
     private void parseComptimeIf() {
         var m=b.mark(); advance(); expect(IF,"Expected 'if' after '#'");
@@ -79,6 +114,7 @@ public final class NovusParser implements PsiParser {
         while(!b.eof() && !at(RBRACE)) {
             skipComments(); if(at(RBRACE)) break;
             if(at(FN)) parseFunction();
+            else if(at(CLASS)) parseClass();
             else if(at(IMPORT)) parseImport();
             else if(at(LET)) parseVariable(false);
             else if(at(HASH)) parseComptimeIf();
@@ -130,7 +166,7 @@ public final class NovusParser implements PsiParser {
         b.error("Expected closing '"+close+"'");
     }
     private void recoverTopLevel() {
-        do { advance(); } while(!b.eof() && !at(FN) && !at(LET) && !at(IMPORT) && !at(HASH));
+        do { advance(); } while(!b.eof() && !at(FN) && !at(LET) && !at(IMPORT) && !at(CLASS) && !at(HASH));
     }
     private boolean oneOf(IElementType... types) { for(var t:types) if(at(t)) return true; return false; }
     private boolean at(IElementType t) { return token()==t; }

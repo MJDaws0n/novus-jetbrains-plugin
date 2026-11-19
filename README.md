@@ -11,6 +11,8 @@ currently tested on PhpStorm 2026.2.
 ## Features
 
 - Lexer and error-recovering parser matched to the upstream Novus compiler, including `#if`, globals, default parameters, selective/aliased/relative imports, arrays, floats, bitwise operators, compound assignment, and C-style `for` loops.
+- Classes, `pub`/`priv` fields and methods, `init` constructors, `static` members, `new`, `self`, `null`, qualified class types and class arrays.
+- Class/member highlighting and Structure view; completion and navigation for local/imported classes, instance/static members, method results and indexed class arrays. Private members stay within their class.
 - Syntax and semantic highlighting, configurable colours, brace/quote matching, comments, folding, formatting, and a New Novus File template.
 - Completion for language syntax, all current compiler intrinsics, visible locals/parameters/functions, direct imports, import aliases, imported members, and import paths.
 - Go to declaration, rename, find usages, Go to Symbol, quick documentation, and Structure view.
@@ -22,7 +24,7 @@ currently tested on PhpStorm 2026.2.
 ## Requirements
 
 - JDK 25
-- Novus 0.2.x and Nox on `PATH` to use the build and package actions
+- Novus and Nox on `PATH` to use the build and package actions; class syntax follows the compiler's class fixtures and current Novus 0.4 language reference.
 
 ## Build
 
@@ -44,6 +46,11 @@ The installable ZIP is written to `build/distributions/`.
 In a compatible JetBrains IDE, open **Settings | Plugins**, choose
 **Install Plugin from Disk…**, select the ZIP from the release or
 `build/distributions/`, and restart the IDE.
+
+The plugin is named **Novus Language Support**, with plugin ID
+`dev.mjdawson.novus`. Its source and installable releases are at
+https://github.com/MJDaws0n/novus-jetbrains-plugin. It is a native JetBrains
+plugin, installed from its ZIP through **Install Plugin from Disk…**.
 
 For development, `./gradlew runIde` opens a sandboxed IDE with the plugin
 installed.
